@@ -23,13 +23,17 @@ class CityData:
         s += "\tpopulation: {0}\n".format(self.population)
         return s
 
+    def getCSV(self):
+        s = ""
+        s += "{0};{1};{2};{3}".format(self.name, self.lon, self.lat, self.population)
+        return s
 
 def getCityName(pageData):
-    h1=pageData.select('h3')
+    h1=pageData.select('h1')
     if(len(h1) == 0):
         return "123"
     cityName=h1[0].getText()
-    cityName = cityName.replace(" ", "").split(":")[-1]
+    cityName = cityName.replace(" ", "").split(",")[0]
     return cityName
 
 def getCityCoord(pageData):
@@ -56,23 +60,54 @@ def parseCityData(pathToPage):
     currCity.population = getCityPopulation(pageData)
     return currCity
 
-def parseLetterData(pathToLetter):
+def parseLetterData(pathToLetter, allCities):
     s=requests.get(pathToLetter)
     pageData=bs4.BeautifulSoup(s.text, "html.parser")
-    linesInTable = pageData.find("table").find_all('tr')
-    linesInTable = linesInTable[1:]
-    for line in linesInTable:
-        linkData = line.find("td").find("a")
-        linkToCity = linkData.get('href')
-        currCity = parseCityData(citeName+linkToCity)
-        print currCity
+    table = pageData.find("table")
+    if table != None:
+        linesInTable = table.find_all('tr')
+        linesInTable = linesInTable[1:]
+        for line in linesInTable:
+            linkData = line.find("td").find("a")
+            linkToCity = linkData.get('href')
+            currCity = parseCityData(citeName+linkToCity)
+            if currCity.name == "123":
+                continue
+            if currCity.name.isalpha() == False:
+                continue
+            allCities.append(currCity)
+    else:
+        parseRegionData(pathToLetter, allCities)
     return
 
-def main():
-    #parseRegionData("http://fallingrain.com/world/TU/32/")
-    parseLetterData("http://fallingrain.com/world/TU/32/a/R/")
-    parseCityData('http://fallingrain.com/world/TU/78/Sahinler_Mahallesi.html')
+def parseRegionData(linkToRegion, allCities):
+    print "Parse: {0}".format(linkToRegion)
+    s=requests.get(linkToRegion)
+    pageData=bs4.BeautifulSoup(s.text, "html.parser")
+    allA = pageData.find_all("a")
+    for lintData in allA:
+        letter = lintData.getText()
+        if letter not in "abcdefghigklmnopqrstuvwxyzABCDEFGHIGKLMNOPQRSTUVWXYZ":
+            continue
+        print "\tParse letter: {0}".format(citeName+lintData.get("href"))
+        parseLetterData(citeName+lintData.get("href"), allCities)
+    return
 
+def writeInCSV(allCities):
+    f = open("cit.csv", "w")
+    allCitiesSet = set([i.getCSV() for i in allCities])
+    for city in allCitiesSet:
+        f.write(city)
+        f.write("\r\n")
+    f.close()
+
+def main():
+    allCities = []
+    parseRegionData("http://fallingrain.com/world/TU/32/", allCities)
+    parseRegionData("http://fallingrain.com/world/TU/07/", allCities)
+    parseRegionData("http://fallingrain.com/world/TU/78/", allCities)
+    print len(allCities)
+    writeInCSV(allCities)
     print "Done!"
     return 
 
